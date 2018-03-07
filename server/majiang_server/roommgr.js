@@ -6,11 +6,11 @@ var creatingRooms = {};
 var userLocation = {};
 var totalRooms = 0;
 
-var DI_FEN = [1,2,5];
-var MAX_FAN = [3,4,5];
-var JU_SHU = [4,8];
-var JU_SHU_COST = [2,3];
-var REN_SHU = [2,3,4,8,12];
+var DI_FEN = [1,2,5];//底分
+var MAX_FAN = [3,4,5];//最大翻数
+var JU_SHU = [4,8];//局数
+var JU_SHU_COST = [2,3];//消费
+var REN_SHU = [8,12];//人数
 
 function generateRoomId(){
 	var roomId = "";
@@ -22,18 +22,13 @@ function generateRoomId(){
 
 function factoryGameMgr(type){
 	var gameMgr = null
-	if(type == "xlch"){
-		gameMgr = require("./gamemgr_xlch");
-	}else if(type == "xzdd"){
-		gameMgr = require("./gamemgr_xzdd");
-	}else if(type == "mzsg"){
+	if(type == "mzsg"){
 		gameMgr = require("./gamemgr_mzsg"); 
 	}
 	return gameMgr
 }
 
 function constructRoomFromDb(dbdata) {
-	
 	
 	var roomInfo = {
 		uuid:dbdata.uuid,
@@ -45,26 +40,20 @@ function constructRoomFromDb(dbdata) {
 	};
 	
 	//设置人数
-	var numPeople = roomInfo.conf.people
+	var maxPeople = roomInfo.conf.maxPeople
 
-	roomInfo.seats = new Array(numPeople) 
+	roomInfo.seats = new Array(maxPeople) 
 	roomInfo.gameMgr = factoryGameMgr(roomInfo.conf.type)
 	
 	var roomId = roomInfo.id;
-
-	for(var i = 0; i < numPeople; ++i){
+	
+	for(var i = 0; i < maxPeople; ++i){
 		var s = roomInfo.seats[i] = {};
 		s.userId = dbdata["user_id" + i];
 		s.score = dbdata["user_score" + i];
 		s.name = dbdata["user_name" + i];
 		s.ready = false;
 		s.seatIndex = i;
-		s.numZiMo = 0;
-		s.numJiePao = 0;
-		s.numDianPao = 0;
-		s.numAnGang = 0;
-		s.numMingGang = 0;
-		s.numChaJiao = 0;
 
 		if(s.userId > 0){
 			userLocation[s.userId] = {
@@ -72,7 +61,7 @@ function constructRoomFromDb(dbdata) {
 				seatIndex:i
 			};
 		} 	
-	}
+	}	
 	rooms[roomId] = roomInfo;
 	totalRooms++;
 	return roomInfo;
@@ -82,15 +71,8 @@ exports.createRoom = function(creator,roomConf,gems,ip,port,callback){
 	if(
 		roomConf.type == null
 		|| roomConf.people == null
-		|| roomConf.difen == null
-		|| roomConf.zimo == null
-		|| roomConf.jiangdui == null
-		|| roomConf.huansanzhang == null
-		|| roomConf.zuidafanshu == null
-		|| roomConf.jushuxuanze == null
-		|| roomConf.dianganghua == null
-		|| roomConf.menqing == null
-		|| roomConf.tiandihu == null){
+		|| roomConf.jushu == null
+		|| roomConf.difen == null){
 		callback(1,null);
 		return;
 	}
@@ -99,28 +81,18 @@ exports.createRoom = function(creator,roomConf,gems,ip,port,callback){
 		callback(1,null);
 		return;
 	}
-
+	
 	if(roomConf.difen < 0 || roomConf.difen > DI_FEN.length){
 		callback(1,null);
 		return;
 	}
-
-	if(roomConf.zimo < 0 || roomConf.zimo > 2){
-		callback(1,null);
-		return;
-	}
-
-	if(roomConf.zuidafanshu < 0 || roomConf.zuidafanshu > MAX_FAN.length){
-		callback(1,null);
-		return;
-	}
-
-	if(roomConf.jushuxuanze < 0 || roomConf.jushuxuanze > JU_SHU.length){
+    
+	if(roomConf.jushu < 0 || roomConf.jushu > JU_SHU.length){
 		callback(1,null);
 		return;
 	}
 	
-	var cost = JU_SHU_COST[roomConf.jushuxuanze];
+	var cost = JU_SHU_COST[roomConf.jushu];
 	if(cost > gems){
 		callback(2222,null);
 		return;
@@ -141,8 +113,8 @@ exports.createRoom = function(creator,roomConf,gems,ip,port,callback){
 				}
 				else{
 					var createTime = Math.ceil(Date.now()/1000);
-					var numPeople = REN_SHU[roomConf.people]
-
+					var maxPeople = REN_SHU[roomConf.people]
+					
 					var roomInfo = {
 						uuid:"",
 						id:roomId,
@@ -153,15 +125,8 @@ exports.createRoom = function(creator,roomConf,gems,ip,port,callback){
 						conf:{
 							type:roomConf.type,
 							baseScore:DI_FEN[roomConf.difen],
-							people:numPeople,
-						    zimo:roomConf.zimo,
-						    jiangdui:roomConf.jiangdui,
-						    hsz:roomConf.huansanzhang,
-						    dianganghua:parseInt(roomConf.dianganghua),
-						    menqing:roomConf.menqing,
-						    tiandihu:roomConf.tiandihu,
-						    maxFan:MAX_FAN[roomConf.zuidafanshu],
-						    maxGames:JU_SHU[roomConf.jushuxuanze],
+							maxPeople:maxPeople,       
+						    maxGames:JU_SHU[roomConf.jushu],
 						    creator:creator,
 						}
 					};
@@ -170,19 +135,13 @@ exports.createRoom = function(creator,roomConf,gems,ip,port,callback){
 					
 					console.log(roomInfo.conf);
 					
-					for(var i = 0; i < numPeople; ++i){
+					for(var i = 0; i < maxPeople; ++i){
 						roomInfo.seats.push({
 							userId:0,
 							score:0,
 							name:"",
 							ready:false,
-							seatIndex:i,
-							numZiMo:0,
-							numJiePao:0,
-							numDianPao:0,
-							numAnGang:0,
-							numMingGang:0,
-							numChaJiao:0,
+							seatIndex:i, 
 						});
 					}
 					

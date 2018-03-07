@@ -10,7 +10,7 @@ exports.start = function(config,mgr){
 	io = require('socket.io')(config.CLIENT_PORT); 
 	io.sockets.on('connection',function(socket){
 		
-		//登陆
+		//登陆加入房间
 		socket.on('login',function(data){
 			data = JSON.parse(data);
 			if(socket.userId != null){
@@ -99,7 +99,7 @@ exports.start = function(config,mgr){
 			};
 			socket.emit('login_result',ret);
 
-			//通知其它客户端
+			//通知其它客户端,加入新玩家
 			userMgr.broacastInRoom('new_user_comes_push',userData,userId);
 			
 			socket.gameMgr = roomInfo.gameMgr;
@@ -109,6 +109,7 @@ exports.start = function(config,mgr){
 
 			socket.emit('login_finished');
 
+			//检查当前是否有解散房间
 			if(roomInfo.dr != null){
 				var dr = roomInfo.dr;
 				var ramaingTime = (dr.endTime - Date.now()) / 1000;
@@ -118,6 +119,7 @@ exports.start = function(config,mgr){
 				}
 				userMgr.sendMsg(userId,'dissolve_notice_push',data);	
 			}
+			
 		});
 
 		//准备开始
@@ -129,91 +131,7 @@ exports.start = function(config,mgr){
 			socket.gameMgr.setReady(userId);
 			userMgr.broacastInRoom('user_ready_push',{userid:userId,ready:true},userId,true);
 		});
-
-
-		//换牌
-		socket.on('huanpai',function(data){
-			if(socket.userId == null){
-				return;
-			}
-			if(data == null){
-				return;
-			} 
-			if(typeof(data) == "string"){
-				data = JSON.parse(data);
-			} 
-			var p1 = data.p1;
-			var p2 = data.p2;
-			var p3 = data.p3;
-			if(p1 == null || p2 == null || p3 == null){
-				console.log("invalid data");
-				return;
-			}	
-			socket.gameMgr.huanSanZhang(socket.userId,p1,p2,p3);
-		});
-
-		//定缺
-		socket.on('dingque',function(data){
-			if(socket.userId == null){
-				return;
-			}
-			var que = data;
-			socket.gameMgr.dingQue(socket.userId,que);
-		});
-
-		//出牌
-		socket.on('chupai',function(data){
-			if(socket.userId == null){
-				return;
-			}
-			var pai = data;
-			socket.gameMgr.chuPai(socket.userId,pai);
-		});
 		
-		//碰
-		socket.on('peng',function(data){
-			if(socket.userId == null){
-				return;
-			}
-			socket.gameMgr.peng(socket.userId);
-		});
-		
-		//杠
-		socket.on('gang',function(data){
-			if(socket.userId == null || data == null){
-				return;
-			}
-			var pai = -1;
-			if(typeof(data) == "number"){
-				pai = data;
-			}
-			else if(typeof(data) == "string"){
-				pai = parseInt(data);
-			}
-			else{
-				console.log("gang:invalid param");
-				return;
-			}
-			socket.gameMgr.gang(socket.userId,pai);
-		});
-		
-		//胡
-		socket.on('hu',function(data){
-			if(socket.userId == null){
-				return;
-			}
-			socket.gameMgr.hu(socket.userId);
-		});
-
-		//过  遇上胡，碰，杠的时候，可以选择过
-		socket.on('guo',function(data){
-			if(socket.userId == null){
-				return;
-			}
-			socket.gameMgr.guo(socket.userId);
-		});
-		
-
 		//聊天
 		socket.on('chat',function(data){
 			if(socket.userId == null){
@@ -347,6 +265,7 @@ exports.start = function(config,mgr){
 			console.log(6);
 		});
 
+		//同意解散房间
 		socket.on('dissolve_agree',function(data){
 			var userId = socket.userId;
 
@@ -382,7 +301,8 @@ exports.start = function(config,mgr){
 				}
 			}
 		});
-
+		
+		//拒绝解散房间
 		socket.on('dissolve_reject',function(data){
 			var userId = socket.userId;
 
@@ -420,6 +340,7 @@ exports.start = function(config,mgr){
 			socket.userId = null;
 		});
 		
+		//网络心跳
 		socket.on('game_ping',function(data){
 			var userId = socket.userId;
 			if(!userId){
@@ -428,7 +349,6 @@ exports.start = function(config,mgr){
 			//console.log('game_ping');
 			socket.emit('game_pong');
 		});
-
 		
 		//抢庄家
 		socket.on('robbanker',function(data){
@@ -438,7 +358,7 @@ exports.start = function(config,mgr){
 			var flag = data.flag 
 			socket.gameMgr.robbanker(socket.userId,flag);
 		});
-
+		
 		//下注
 		socket.on('betchip',function(data){
 			if(socket.userId == null){
@@ -447,16 +367,7 @@ exports.start = function(config,mgr){
 			var flag = data.flag 
 			socket.gameMgr.betchip(socket.userId,flag);
 		});
-
-		//比牌
-		socket.on('bipai',function(data){
-			if(socket.userId == null){
-				return;
-			}	
-			socket.gameMgr.bipai(socket.userId);
-		});
 		
-
 	});
 
 	setInterval(function(){
